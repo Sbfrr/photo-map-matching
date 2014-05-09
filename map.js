@@ -45,6 +45,7 @@ function ImageFetcher(){
 }
 
 
+
 // Build map and distance computation
 function Map() {
 
@@ -192,9 +193,6 @@ var game = function(){
     }
   }
 }
-
-
-
 
 game();
 
