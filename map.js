@@ -7,7 +7,8 @@ function ImageFetcher(){
 
   function asyncGetImageObjects(imageCount, callback){
     var imagesList = [];
-    var imagesUrl = "https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key=8a0621b8d6dbf3abc50866449409121c&privacy_filter=1&has_geo=1&per_page="+imageCount+"&format=json&nojsoncallback=1";
+    var imagesUrl = "https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key=8a0621b8d6dbf3abc50866449409121c&privacy_filter=1&accuracy=11&has_geo=1&per_page="+ imageCount +"&format=json&nojsoncallback=1";
+
     $.getJSON(imagesUrl, function(imageObject){
       for(var i = 0; i<imageCount; i++){
         var image = imageObject.photos.photo[i]
@@ -31,6 +32,7 @@ function ImageFetcher(){
   function asyncSetPositionFor(image, imagesList, imageCount){
     var imagesList = imagesList;
     var positionUrl = "https://api.flickr.com/services/rest/?method=flickr.photos.geo.getLocation&api_key=8a0621b8d6dbf3abc50866449409121c&photo_id=" + image.id + "&format=json&nojsoncallback=1";
+
     $.get(positionUrl, function(positionObject){
       var position = positionObject.photo.location;
       image.position = new google.maps.LatLng(position.latitude,position.longitude);
@@ -43,11 +45,11 @@ function ImageFetcher(){
 }
 
 
-// Build map and distance computation with Google map api
-function GoogleMap() {
+// Build map and distance computation
+function Map() {
 
   var map;
-  var marker;
+  var markersList = [];
 
   this.initialize = function(){
     var myLatlng = new google.maps.LatLng(48.8567, 2.3508)
@@ -67,35 +69,36 @@ function GoogleMap() {
       position: location,
       map: map
     });
+    markersList.push(marker);
     map.panTo(location);
   }
 
   this.removeMarker = function(){
-    if(marker){
-      marker.setMap(null);
+    if(markersList != []){
+      markersList.forEach(function(marker) {
+        marker.setMap(null);
+      });
     }
   }
 
-  // this.asyncDistanceBetween = function(origin, destination){
-  //   var service = new google.maps.DistanceMatrixService();
-  //   service.getDistanceMatrix({
-  //     origins: [origin],
-  //     destinations: [destination],
-  //     travelMode: google.maps.TravelMode.WALKING,
-  //     durationInTraffic: false,
-  //     avoidHighways: false,
-  //     avoidTolls: false
-  //   }, returnDistance);
-  // };
+  this.getDistanceBetween = function(lat1,lon1,lat2,lon2) {
+    var R = 6371; // Radius of the earth in km
+    var dLat = degToRad(lat2-lat1);  // degToRad below
+    var dLon = degToRad(lon2-lon1);
 
-  // function returnDistance(response, status) {
-  //   if (status == google.maps.DistanceMatrixStatus.OK) {
-  //     var results = response.rows[0].elements[0];
-  //     var distance = results.distance.text;
-  //     $.event.trigger({type: "distanceReturned", message: distance});
-  //     console.log(distance);
-  //   }
-  // }
+    var a =
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(degToRad(lat1)) * Math.cos(degToRad(lat2)) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    var d = R * c; // Distance in km
+
+    return Math.floor(d);
+  }
+
+  function degToRad(deg) {
+    return deg * (Math.PI/180)
+  }
 }
 
 
@@ -121,16 +124,17 @@ function DomManipulation(){
 var game = function(){
 
   var imageFetcher = new ImageFetcher();
-  var map = new GoogleMap();
+  var map = new Map();
   var controller = new DomManipulation();
   var gmap = google.maps.event;
+
+  $('#btn').text('next');
 
   imageFetcher.asyncGetImages(5);
 
   gmap.addDomListener(window, 'load', function(){
     $(document).on("photosFetched", function(event) {
       var imagesList = event.message;
-      var imagesCount = imagesCount;
       map.initialize();
       processGame(imagesList);
     });
@@ -140,44 +144,50 @@ var game = function(){
     var i = 0;
     var imagesList = imagesList;
     var imagesCount = imagesList.length;
+    var imageLat = imagesList[i].position.k;
+    var imageLng = imagesList[i].position.A;
+    var distance;
+    var score = 0;
 
     incentive();
 
     function incentive(){
       map.removeMarker();
-      //controller.removeElement();
+      if(i != 0){controller.removeElement(imagesList[i - 1])};
       controller.addElement(imagesList[i]);
-      console.log('incentive');
       manageInput();
     }
 
     function manageInput(){
-      console.log(imagesList[i].region);
       gmap.addListener(map.map(), 'click', function(event){
-        console.log(event.latLng);
         map.placeMarker(event.latLng);
-        map.asyncDistanceBetween(event.latLng, imagesList[i].position);
+        distance = map.getDistanceBetween(event.latLng.k, event.latLng.A, imageLat, imageLng);
+        score += distance;
         gmap.clearInstanceListeners(map.map());
         nextTurn();
       });
     }
 
     function nextTurn(){
-      $(document).on("distanceReturned", function(event) {
-        var distance = event.message;
-        var solution = 'This photo was shot in ' + imagesList[i].region + ', which is ' + distance + ' away from your marker';
-        map.placeMarker(imagesList[i].position);
-        console.log(distance + solution);
-        $('#question').text(solution);
+      var solution = 'This photo was shot in ' + imagesList[i].region + ', which is ' + distance + 'km away from your marker';
+      var finalScore = 'Your final score is '+ score +'km .'
 
-        $('#btn').on('click', function(){
-          if (i = imagesCount - 1){
-            console.log('finalScore()');
-          }else{
-            i ++;
-            incentive();
-          }
-        });
+      map.placeMarker(imagesList[i].position);
+      $('#question').text(solution);
+      $('#btn').on('click', function(){
+        $('#btn').off('click');
+        if (i == imagesCount - 1){
+          controller.removeElement(imagesList[i]);
+          $('#question').text(finalScore);
+          $('#btn').text('retry');
+          $('#btn').on('click', function(){
+            $('#btn').off('click');
+            game();
+          });
+        }else{
+          i ++;
+          incentive();
+        }
       });
     }
   }
