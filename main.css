@@ -1,0 +1,40 @@
+html { height: 100% }
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.hide {
+  display: none;
+}
+
+.instructions {
+  z-index: 110;
+  position: relative;
+  height: 150px;
+  width: 400px;
+  background: white;
+  margin : 50px auto;
+}
+
+.image {
+  z-index: 100;
+  position: relative;
+  max-width:300px;
+  max-height:300px;
+  width: auto;
+  height: auto;
+  margin : 50px auto;
+}
+
+#map-canvas {
+  height: 100%;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+}
+
